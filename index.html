@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sensor Monitor</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial, Helvetica, sans-serif;
+}
+
+body{
+    background:#000;
+    color:#fff;
+}
+
+.page{
+    display:none;
+    min-height:100vh;
+    justify-content:flex-start;
+    align-items:center;
+    flex-direction:column;
+    padding:40px 20px 100px;
+    position:relative;
+}
+
+.active{
+    display:flex;
+}
+
+h1{
+    margin-bottom:30px;
+    color:#fff;
+    font-size:32px;
+    letter-spacing:2px;
+    text-align:center;
+}
+
+/* WHITE SQUARE BUTTONS */
+button{
+    width:260px;
+    padding:16px;
+    margin:10px;
+    border:2px solid #fff;
+    border-radius:0;
+    background:#fff;
+    color:#000;
+    font-size:18px;
+    font-weight:bold;
+    cursor:pointer;
+    transition:.2s;
+}
+
+button:hover{
+    background:#000;
+    color:#fff;
+}
+
+button:disabled{
+    opacity:.4;
+    cursor:not-allowed;
+}
+
+.dangerButton{
+    border-color:#d9483b;
+    color:#d9483b;
+}
+
+.dangerButton:hover{
+    background:#d9483b;
+    color:#fff;
+}
+
+/* INPUT BOXES */
+input[type="text"], input[type="password"]{
+    width:280px;
+    padding:15px;
+    margin:10px;
+    border:2px solid #fff;
+    border-radius:0;
+    background:#000;
+    color:#fff;
+    font-size:18px;
+}
+
+input::placeholder{
+    color:#888;
+}
+
+/* FILE INPUT (Add Photo) styled as a button */
+.photo-input-wrap{
+    width:280px;
+    margin:10px;
+}
+
+.photo-input-wrap input[type="file"]{
+    display:none;
+}
+
+.photo-btn{
+    width:280px;
+    padding:16px;
+    border:2px solid #fff;
+    background:transparent;
+    color:#fff;
+    font-size:16px;
+    font-weight:bold;
+    cursor:pointer;
+    text-align:center;
+    display:block;
+    transition:.2s;
+}
+
+.photo-btn:hover{
+    background:#fff;
+    color:#000;
+}
+
+/* SENSOR DISPLAY CARD */
+.card{
+    background:#000;
+    border:2px solid #fff;
+    border-radius:0;
+    width:320px;
+    padding:20px;
+    margin-bottom:20px;
+}
+
+.data{
+    font-size:24px;
+    margin:10px 0;
+    color:#fff;
+    word-break:break-word;
+}
+
+.small{
+    font-size:15px;
+    color:#aaa;
+}
+
+hr{
+    border:1px solid #fff;
+    margin:15px 0;
+    opacity:.5;
+}
+
+#photoPreview{
+    width:180px;
+    height:180px;
+    object-fit:cover;
+    border:2px solid #fff;
+    margin:15px 0;
+    display:none;
+}
+
+#cardPhoto{
+    width:100%;
+    max-width:280px;
+    aspect-ratio:1/1;
+    object-fit:cover;
+    border:2px solid #fff;
+    margin-bottom:15px;
+    display:none;
+}
+
+.noPhoto{
+    width:100%;
+    max-width:280px;
+    aspect-ratio:1/1;
+    border:2px dashed #555;
+    color:#555;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:14px;
+    margin-bottom:15px;
+    text-align:center;
+}
+
+.itemId{
+    display:inline-block;
+    border:2px solid #fff;
+    padding:4px 10px;
+    font-size:14px;
+    letter-spacing:1px;
+    margin-bottom:10px;
+}
+
+/* LIVE MONITOR PANEL */
+.livePanel{
+    width:100%;
+}
+
+.liveRow{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin:6px 0;
+}
+
+.liveLabel{
+    font-size:14px;
+    color:#aaa;
+}
+
+.liveValue{
+    font-size:16px;
+    font-weight:bold;
+}
+
+.statusDot{
+    display:inline-block;
+    width:9px;
+    height:9px;
+    border-radius:50%;
+    margin-right:6px;
+    background:#555;
+}
+
+.statusDot.online{
+    background:#3ddc4a;
+}
+
+.statusDot.offline{
+    background:#d9483b;
+}
+
+.liveNote{
+    font-size:12px;
+    color:#777;
+    margin-top:10px;
+    line-height:1.4;
+}
+
+.configWarning{
+    max-width:320px;
+    border:2px solid #d9483b;
+    color:#d9483b;
+    padding:12px;
+    font-size:13px;
+    margin-bottom:20px;
+    display:none;
+    text-align:center;
+}
+</style>
+</head>
+
+<body>
+
+<!-- HOME PAGE -->
+<div id="home" class="page active" style="justify-content:center;">
+    <h1>Sensor Monitor</h1>
+
+    <div class="configWarning" id="configWarning">
+        Supabase isn't configured yet. Edit SUPABASE_URL and SUPABASE_ANON_KEY near the top of the &lt;script&gt; tag.
+    </div>
+
+    <button onclick="showPage('registerPage'); resetRegisterForm();">REGISTER</button>
+    <button onclick="showPage('checkPage'); loadSavedData();">CHECK</button>
+</div>
+
+<!-- REGISTER PAGE -->
+<div id="registerPage" class="page">
+
+    <h1>REGISTER ITEM</h1>
+
+    <input type="text" id="itemName" placeholder="Enter Name">
+
+    <input type="text" id="itemDeviceId" placeholder="Device ID (e.g. A1B2C3, optional)">
+
+    <div class="photo-input-wrap">
+        <label class="photo-btn" for="itemPhoto" id="photoBtnLabel">ADD PHOTO</label>
+        <input type="file" id="itemPhoto" accept="image/*" onchange="previewPhoto(event)">
+    </div>
+
+    <img id="photoPreview" alt="Photo preview">
+
+    <button id="registerButton" onclick="registerItem()">REGISTER</button>
+
+    <button onclick="showPage('home')">HOME</button>
+
+</div>
+
+<!-- CHECK PAGE -->
+<div id="checkPage" class="page">
+
+    <h1>REGISTERED ITEMS</h1>
+
+    <div class="card">
+
+        <div class="itemId" id="displayID">None</div>
+
+        <div id="cardPhotoWrap">
+            <img id="cardPhoto" alt="Item photo">
+            <div class="noPhoto" id="noPhoto">No Photo</div>
+        </div>
+
+        <div class="small">Name</div>
+        <div id="displayName" class="data">---</div>
+
+        <hr>
+
+        <div class="livePanel" id="livePanel">
+            <div class="liveRow">
+                <span class="liveLabel"><span class="statusDot" id="statusDot"></span>Status</span>
+                <span class="liveValue" id="liveStatus">No device linked</span>
+            </div>
+            <div class="liveRow">
+                <span class="liveLabel">Humidity</span>
+                <span class="liveValue" id="liveHumidity">--</span>
+            </div>
+            <div class="liveRow">
+                <span class="liveLabel">Humidifier</span>
+                <span class="liveValue" id="liveHumidifier">--</span>
+            </div>
+            <div class="liveRow">
+                <span class="liveLabel">Fan</span>
+                <span class="liveValue" id="liveFan">--</span>
+            </div>
+            <div class="liveNote" id="liveNote"></div>
+        </div>
+
+    </div>
+
+    <div>
+        <button onclick="previousDevice()">PREVIOUS</button>
+        
+    </div>
+     <div>
+       
+        <button onclick="nextDevice()">NEXT</button>
+    </div>
+
+    <button class="dangerButton" onclick="deleteCurrentItem()">DELETE ITEM</button>
+
+    <button onclick="showPage('home'); stopLiveMonitor();">HOME</button>
+
+</div>
+
+<script>
+/* ---------- SUPABASE CONFIG - fill these in ---------- */
+const SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";       // e.g. "https://xxxxxxxx.supabase.co"
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";     // Project Settings -> API -> anon public key
+const PHOTOS_BUCKET = "item-photos";
+
+const supabaseConfigured = SUPABASE_URL.startsWith("http") && SUPABASE_ANON_KEY.length > 20;
+const supabaseClient = supabaseConfigured ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+if(!supabaseConfigured){
+    document.getElementById("configWarning").style.display = "block";
+}
+
+function showPage(id){
+    document.querySelectorAll(".page").forEach(page=>{
+        page.classList.remove("active");
+    });
+    document.getElementById(id).classList.add("active");
+}
+
+let items = [];
+let currentIndex = 0;
+
+function formatItemId(numericId){
+    return "ITM-" + String(numericId).padStart(4, "0");
+}
+
+/* ---------- REGISTER PAGE ---------- */
+
+function resetRegisterForm(){
+    document.getElementById("itemName").value = "";
+    document.getElementById("itemDeviceId").value = "";
+    document.getElementById("itemPhoto").value = "";
+    document.getElementById("photoPreview").style.display = "none";
+    document.getElementById("photoPreview").src = "";
+    document.getElementById("photoBtnLabel").textContent = "ADD PHOTO";
+}
+
+function previewPhoto(event){
+    const file = event.target.files[0];
+    if(!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e){
+        const preview = document.getElementById("photoPreview");
+        preview.src = e.target.result;
+        preview.style.display = "block";
+        document.getElementById("photoBtnLabel").textContent = "CHANGE PHOTO";
+    };
+    reader.readAsDataURL(file);
+}
+
+async function registerItem(){
+    if(!supabaseConfigured){
+        alert("Supabase isn't configured yet - see the warning on the Home page.");
+        return;
+    }
+
+    const name = document.getElementById("itemName").value.trim();
+    const deviceId = document.getElementById("itemDeviceId").value.trim();
+    const photoFile = document.getElementById("itemPhoto").files[0];
+
+    if(name === ""){
+        alert("Enter a name for this item.");
+        return;
+    }
+
+    const registerButton = document.getElementById("registerButton");
+    registerButton.disabled = true;
+    registerButton.textContent = "SAVING...";
+
+    try{
+        let photoUrl = null;
+
+        if(photoFile){
+            const filePath = Date.now() + "-" + photoFile.name.replace(/\s+/g, "_");
+
+            const { error: uploadError } = await supabaseClient
+                .storage
+                .from(PHOTOS_BUCKET)
+                .upload(filePath, photoFile);
+
+            if(uploadError){
+                alert("Photo upload failed: " + uploadError.message);
+                return;
+            }
+
+            const { data: publicUrlData } = supabaseClient
+                .storage
+                .from(PHOTOS_BUCKET)
+                .getPublicUrl(filePath);
+
+            photoUrl = publicUrlData.publicUrl;
+        }
+
+        const { data, error } = await supabaseClient
+            .from("items")
+            .insert({
+                name: name,
+                device_id: deviceId || null,
+                photo_url: photoUrl
+            })
+            .select()
+            .single();
+
+        if(error){
+            alert("Could not save item: " + error.message);
+            return;
+        }
+
+        alert("Item Registered: " + formatItemId(data.id));
+
+        resetRegisterForm();
+        showPage("home");
+    } finally {
+        registerButton.disabled = false;
+        registerButton.textContent = "REGISTER";
+    }
+}
+
+/* ---------- CHECK PAGE ---------- */
+
+async function loadSavedData(){
+    if(!supabaseConfigured){
+        document.getElementById("displayID").innerHTML = "Not Configured";
+        document.getElementById("displayName").innerHTML = "Set up Supabase first";
+        document.getElementById("cardPhoto").style.display = "none";
+        document.getElementById("noPhoto").style.display = "flex";
+        setLiveUI("none", null, null, null, "");
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from("items")
+        .select("*")
+        .order("id", { ascending: true });
+
+    if(error){
+        alert("Could not load items: " + error.message);
+        items = [];
+    } else {
+        items = data;
+    }
+
+    if(items.length === 0){
+        document.getElementById("displayID").innerHTML = "No Items";
+        document.getElementById("displayName").innerHTML = "---";
+        document.getElementById("cardPhoto").style.display = "none";
+        document.getElementById("noPhoto").style.display = "flex";
+        setLiveUI("none", null, null, null, "");
+        return;
+    }
+
+    currentIndex = 0;
+    displayCurrentDevice();
+}
+
+function displayCurrentDevice(){
+    const item = items[currentIndex];
+
+    document.getElementById("displayID").innerHTML = formatItemId(item.id);
+    document.getElementById("displayName").innerHTML = item.name;
+
+    const cardPhoto = document.getElementById("cardPhoto");
+    const noPhoto = document.getElementById("noPhoto");
+
+    if(item.photo_url){
+        cardPhoto.src = item.photo_url;
+        cardPhoto.style.display = "block";
+        noPhoto.style.display = "none";
+    } else {
+        cardPhoto.style.display = "none";
+        noPhoto.style.display = "flex";
+    }
+
+    startLiveMonitor(item);
+}
+
+function nextDevice(){
+    if(items.length === 0) return;
+
+    currentIndex++;
+    if(currentIndex >= items.length) currentIndex = 0;
+
+    displayCurrentDevice();
+}
+
+function previousDevice(){
+    if(items.length === 0) return;
+
+    currentIndex--;
+    if(currentIndex < 0) currentIndex = items.length - 1;
+
+    displayCurrentDevice();
+}
+
+async function deleteCurrentItem(){
+    if(items.length === 0) return;
+
+    const item = items[currentIndex];
+    const confirmed = confirm("Delete \"" + item.name + "\" (" + formatItemId(item.id) + ")? This cannot be undone.");
+    if(!confirmed) return;
+
+    stopLiveMonitor();
+
+    const { error } = await supabaseClient.from("items").delete().eq("id", item.id);
+    if(error){
+        alert("Could not delete: " + error.message);
+        return;
+    }
+
+    items.splice(currentIndex, 1);
+
+    if(items.length === 0){
+        currentIndex = 0;
+        document.getElementById("displayID").innerHTML = "No Items";
+        document.getElementById("displayName").innerHTML = "---";
+        document.getElementById("cardPhoto").style.display = "none";
+        document.getElementById("noPhoto").style.display = "flex";
+        setLiveUI("none", null, null, null, "");
+        return;
+    }
+
+    if(currentIndex >= items.length) currentIndex = items.length - 1;
+    displayCurrentDevice();
+}
+
+/* ---------- LIVE MONITORING ----------
+   Reads the device_status row the ESP32 itself pushes to Supabase
+   every few seconds. Works from any phone/browser/network, since
+   it's just another Supabase read - no local-network fetch involved. */
+
+let livePollTimer = null;
+const LIVE_POLL_INTERVAL_MS = 4000;
+const STALE_AFTER_MS = 15000; // no update in 15s -> treat as offline
+
+function setLiveUI(state, humidity, humidifierOn, fanOn, note){
+    const dot = document.getElementById("statusDot");
+    const status = document.getElementById("liveStatus");
+
+    dot.classList.remove("online", "offline");
+    if(state === "online") dot.classList.add("online");
+    if(state === "offline") dot.classList.add("offline");
+
+    status.textContent =
+        state === "online" ? "Online" :
+        state === "offline" ? "Offline" :
+        state === "checking" ? "Checking..." :
+        "No device linked";
+
+    document.getElementById("liveHumidity").textContent = humidity != null ? humidity + " %" : "--";
+    document.getElementById("liveHumidifier").textContent = humidifierOn === true ? "ON" : humidifierOn === false ? "OFF" : "--";
+    document.getElementById("liveFan").textContent = fanOn === true ? "ON" : fanOn === false ? "OFF" : "--";
+    document.getElementById("liveNote").textContent = note || "";
+}
+
+async function pollLiveData(item){
+    const { data, error } = await supabaseClient
+        .from("device_status")
+        .select("*")
+        .eq("device_id", item.device_id)
+        .maybeSingle();
+
+    if(error){
+        setLiveUI("offline", null, null, null, "Could not read device status: " + error.message);
+        return;
+    }
+
+    if(!data){
+        setLiveUI("offline", null, null, null, "No status reported yet for this Device ID. Check it's correct and the device has connected at least once.");
+        return;
+    }
+
+    const ageMs = Date.now() - new Date(data.updated_at).getTime();
+
+    if(ageMs > STALE_AFTER_MS){
+        setLiveUI("offline",
+            data.humidity_valid ? data.humidity : null,
+            data.humidifier_on,
+            data.fan_on,
+            "Last update " + Math.round(ageMs / 1000) + "s ago - device may be offline.");
+        return;
+    }
+
+    setLiveUI("online",
+        data.humidity_valid ? data.humidity : null,
+        data.humidifier_on,
+        data.fan_on,
+        data.ap_mode ? "Device is in WiFi setup mode." : "");
+}
+
+function startLiveMonitor(item){
+    stopLiveMonitor();
+
+    if(!item.device_id){
+        setLiveUI("none", null, null, null, "Add a Device ID when registering this item to see live data.");
+        return;
+    }
+
+    setLiveUI("checking", null, null, null, "");
+    pollLiveData(item);
+    livePollTimer = setInterval(() => pollLiveData(item), LIVE_POLL_INTERVAL_MS);
+}
+
+function stopLiveMonitor(){
+    if(livePollTimer){
+        clearInterval(livePollTimer);
+        livePollTimer = null;
+    }
+}
+</script>
+
+</body>
+</html>
